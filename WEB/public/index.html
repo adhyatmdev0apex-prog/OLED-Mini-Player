@@ -221,6 +221,14 @@
               <textarea id="addMeta" name="metadata" class="code-font" placeholder='{"tags": ["geometry_dash", "stickman"]}'>{}</textarea>
             </div>
 
+            <div class="form-group checkbox-group">
+              <label class="checkbox-label" for="addOfflineDownload">
+                <input type="checkbox" id="addOfflineDownload" name="offline_download" value="true">
+                <span><strong>💾 SPIFFS Compatible / Offline Download</strong></span>
+              </label>
+              <small class="field-hint">Mark this media item as eligible for persistent SPIFFS / LittleFS offline storage on the ESP32 (total size must be &le; 1.9MB).</small>
+            </div>
+
             <div class="file-grid">
               <div class="file-card">
                 <label for="addVideo">
@@ -435,6 +443,13 @@
         <div class="form-group">
           <label>Metadata (JSON)</label>
           <textarea id="editMetaInput" class="code-font"></textarea>
+        </div>
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label" for="editOfflineDownload">
+            <input type="checkbox" id="editOfflineDownload">
+            <span><strong>💾 SPIFFS Compatible / Offline Download</strong></span>
+          </label>
+          <small class="field-hint">Mark as eligible for ESP32 flash offline download (validated &le; 1.9MB).</small>
         </div>
         <div class="dialog-actions">
           <button type="button" id="cancelEditBtn" class="ghost-btn">Cancel</button>

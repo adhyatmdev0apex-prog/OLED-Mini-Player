@@ -448,6 +448,9 @@
     $('#editNameInput').value = item.name || '';
     $('#editDescInput').value = item.description || item.metadata?.description || '';
     $('#editMetaInput').value = JSON.stringify(item.metadata || {}, null, 2);
+    if ($('#editOfflineDownload')) {
+      $('#editOfflineDownload').checked = Boolean(item.offline_download || item.metadata?.spiffs_compatible || item.metadata?.offline_download);
+    }
 
     const modal = $('#editModal');
     modal.showModal();
@@ -464,6 +467,8 @@
         return;
       }
 
+      const isOfflineChecked = $('#editOfflineDownload') ? $('#editOfflineDownload').checked : false;
+
       try {
         await fetchApi(`/api/videos/${encodeURIComponent(id)}`, {
           method: 'PUT',
@@ -471,7 +476,8 @@
           body: JSON.stringify({
             name: $('#editNameInput').value,
             description: $('#editDescInput').value,
-            metadata: metaObj
+            metadata: metaObj,
+            offline_download: isOfflineChecked
           })
         });
 

@@ -325,19 +325,24 @@ function createServer(options = {}) {
 
       const totalBytes = (videoStat?.size || 0) + (audioStat?.size || 0);
       const offlineLimit = config.offline_storage_limit || 1900000;
-      const isSpiffsCompatible = totalBytes > 0 && (totalBytes + 4096) <= offlineLimit;
+      const isSizeValid = totalBytes > 0 && (totalBytes + 4096) <= offlineLimit;
+      const userSelectedOffline = item.offline_download === true || item.metadata?.offline_download === true;
+      const isOfflineDownloadable = userSelectedOffline && isSizeValid;
 
       return {
         ...formatPublicItem(item),
+        offline_download: isOfflineDownloadable,
         description: item.description || item.metadata?.description || '',
         created_at: item.created_at || null,
         updated_at: item.updated_at || null,
         metadata: {
           ...(item.metadata || {}),
-          spiffs_compatible: isSpiffsCompatible
+          spiffs_compatible: isSizeValid,
+          offline_download: isOfflineDownloadable
         },
         offline: {
-          compatible: isSpiffsCompatible,
+          compatible: isSizeValid,
+          eligible: isOfflineDownloadable,
           size: totalBytes,
           limit: offlineLimit
         },
@@ -585,7 +590,7 @@ function createServer(options = {}) {
         tracker.type = 'management';
         const bodyBuf = await readRequestBody(req, config.upload.maxBytes);
         const parsed = parseMultipartFormData(bodyBuf, req.headers['content-type']);
-        const { id, name, description = '', metadata = '{}' } = parsed.fields;
+        const { id, name, description = '', metadata = '{}', offline_download } = parsed.fields;
 
         if (typeof id !== 'string' || !ID_REGEX.test(id) || id.length > 64) {
           return sendError(res, 400, 'INVALID_ID', 'ID must contain only alphanumeric characters, underscores, or hyphens (max 64 chars).');
@@ -600,6 +605,9 @@ function createServer(options = {}) {
         } catch {
           return sendError(res, 400, 'INVALID_METADATA', 'Metadata must be valid JSON.');
         }
+
+        const isOfflineRequested = offline_download === 'true' || offline_download === true || offline_download === '1' || offline_download === 'on';
+        parsedMeta.offline_download = isOfflineRequested;
 
         const source = readCatalogue();
         if (source.videos.some(v => v.id === id)) {
@@ -622,6 +630,7 @@ function createServer(options = {}) {
           video_file: 'video.bin',
           audio_file: 'audio.bin',
           description: description.trim(),
+          offline_download: isOfflineRequested,
           metadata: parsedMeta,
           created_at: timestamp,
           updated_at: timestamp
@@ -652,6 +661,10 @@ function createServer(options = {}) {
         item.name = parsed.name.trim();
         item.description = String(parsed.description || '').trim();
         item.metadata = parsed.metadata && typeof parsed.metadata === 'object' ? parsed.metadata : {};
+        if (typeof parsed.offline_download !== 'undefined') {
+          item.offline_download = Boolean(parsed.offline_download);
+          item.metadata.offline_download = Boolean(parsed.offline_download);
+        }
         item.updated_at = new Date().toISOString();
 
         await saveCatalogue(source);

@@ -42,3 +42,39 @@ test('metadata edit PUT and activity endpoint work correctly', async () => {
   // Clean up
   await fetch(`${base}/api/videos/v0003`, { method: 'DELETE' });
 });
+
+test('offline_download flag is returned, validated, and toggleable via PUT', async () => {
+  // 1. Upload item with offline_download = true and small size (fits in flash)
+  const form1 = new FormData();
+  form1.set('id', 'v0010');
+  form1.set('name', 'Small offline video');
+  form1.set('offline_download', 'true');
+  form1.set('video', new Blob([stik()]), 'video.bin');
+  form1.set('audio', new Blob([Buffer.from([1, 2, 3, 4])]), 'audio.bin');
+  let r = await fetch(`${base}/api/videos`, { method: 'POST', body: form1 });
+  assert.equal(r.status, 201);
+
+  // Check catalogue endpoint
+  let catRes = await fetch(`${base}/api/videos?page=0&limit=10`);
+  let catData = await catRes.json();
+  let item = catData.items.find(i => i.id === 'v0010');
+  assert.ok(item, 'Item v0010 found');
+  assert.equal(item.offline_download, true);
+  assert.equal(item.metadata.spiffs_compatible, true);
+
+  // 2. Update via PUT to turn off offline_download
+  let putRes = await fetch(`${base}/api/videos/v0010`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Small offline video', offline_download: false })
+  });
+  assert.equal(putRes.status, 200);
+
+  catRes = await fetch(`${base}/api/videos?page=0&limit=10`);
+  catData = await catRes.json();
+  item = catData.items.find(i => i.id === 'v0010');
+  assert.equal(item.offline_download, false, 'offline_download is now false');
+
+  // Clean up
+  await fetch(`${base}/api/videos/v0010`, { method: 'DELETE' });
+});
