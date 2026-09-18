@@ -189,11 +189,13 @@ function createServer(options = {}) {
 
   function formatPublicItem(item) {
     const base = `/media/${encodeURIComponent(item.id)}`;
+    const isOffline = Boolean(item.offline_download === true || item.metadata?.offline_download === true);
     return {
       id: item.id,
       name: item.name,
       video_url: `${base}/video.bin`,
       audio_url: `${base}/audio.bin`,
+      offline_download: isOffline,
       ...(item.metadata ? { metadata: item.metadata } : {})
     };
   }
@@ -249,18 +251,20 @@ function createServer(options = {}) {
       client,
       esp_identified: isEsp,
       method: req.method,
-      path: req.url,
+      path: tracker.path || req.url,
+      url: req.url,
       status: res.statusCode,
       bytes,
+      bytes_sent: bytes,
+      duration_ms: duration,
+      type: tracker.type || 'api',
       media_id: tracker.mediaId || null,
-      file: tracker.file || null,
-      type: tracker.type || 'http',
-      duration_ms: duration
+      file_type: tracker.fileType || null
     };
 
     activityLog.unshift(entry);
     if (activityLog.length > MAX_ACTIVITY_LOG) {
-      activityLog.pop();
+      activityLog.length = MAX_ACTIVITY_LOG;
     }
 
     activityStats.requestCount++;
@@ -270,17 +274,17 @@ function createServer(options = {}) {
       activityStats.lastEspActivityTime = timestamp;
     }
 
-    if (tracker.type === 'catalogue' && res.statusCode === 200) {
+    if (tracker.type === 'catalogue') {
       activityStats.lastCatalogueFetch = timestamp;
     }
 
-    if (tracker.type === 'media') {
+    if (tracker.type === 'media' || tracker.type === 'video' || tracker.type === 'audio') {
+      activityStats.downloadsCount++;
       activityStats.lastMediaRequest = timestamp;
-      activityStats.lastMedia = tracker.mediaId;
-      if (tracker.file === 'video.bin') activityStats.lastVideoRequest = timestamp;
-      if (tracker.file === 'audio.bin') activityStats.lastAudioRequest = timestamp;
-      if (res.statusCode === 200) {
-        activityStats.downloadsCount++;
+      activityStats.lastMedia = tracker.mediaId || null;
+      if (tracker.file === 'video.bin' || tracker.type === 'video') activityStats.lastVideoRequest = timestamp;
+      if (tracker.file === 'audio.bin' || tracker.type === 'audio') activityStats.lastAudioRequest = timestamp;
+      if (res.statusCode === 200 || res.statusCode === 206) {
         activityStats.lastSuccessfulTransfer = timestamp;
       }
     }
@@ -290,7 +294,7 @@ function createServer(options = {}) {
         timestamp,
         status: res.statusCode,
         path: req.url,
-        message: tracker.errorMessage || null
+        message: tracker.errorMessage || `HTTP ${res.statusCode}`
       };
     }
   }
@@ -302,17 +306,17 @@ function createServer(options = {}) {
     let storageBytes = 0;
 
     const items = await Promise.all(source.videos.map(async (item) => {
-      const getStat = async (filename) => {
+      const itemDir = path.join(mediaDir, item.id);
+      const safeStat = async (filePath) => {
         try {
-          const stat = await fsp.stat(path.join(mediaDir, item.id, filename));
+          const stat = await fsp.stat(filePath);
           return stat.isFile() ? stat : null;
         } catch {
           return null;
         }
       };
-
-      const videoStat = await getStat('video.bin');
-      const audioStat = await getStat('audio.bin');
+      const videoStat = await safeStat(path.join(itemDir, item.video_file || 'video.bin'));
+      const audioStat = await safeStat(path.join(itemDir, item.audio_file || 'audio.bin'));
 
       if (videoStat) {
         videoFiles++;
@@ -324,25 +328,25 @@ function createServer(options = {}) {
       }
 
       const totalBytes = (videoStat?.size || 0) + (audioStat?.size || 0);
-      const offlineLimit = config.offline_storage_limit || 1900000;
+      const offlineLimit = config.offline_storage_limit || 2050000;
+      const isOffline = Boolean(item.offline_download === true || item.metadata?.offline_download === true);
       const isSizeValid = totalBytes > 0 && (totalBytes + 4096) <= offlineLimit;
-      const userSelectedOffline = item.offline_download === true || item.metadata?.offline_download === true;
-      const isOfflineDownloadable = userSelectedOffline && isSizeValid;
 
       return {
         ...formatPublicItem(item),
-        offline_download: isOfflineDownloadable,
+        offline_download: isOffline,
         description: item.description || item.metadata?.description || '',
         created_at: item.created_at || null,
         updated_at: item.updated_at || null,
         metadata: {
           ...(item.metadata || {}),
-          spiffs_compatible: isSizeValid,
-          offline_download: isOfflineDownloadable
+          spiffs_compatible: isOffline,
+          offline_download: isOffline
         },
         offline: {
-          compatible: isSizeValid,
-          eligible: isOfflineDownloadable,
+          compatible: isOffline,
+          eligible: isOffline,
+          size_fits: isSizeValid,
           size: totalBytes,
           limit: offlineLimit
         },

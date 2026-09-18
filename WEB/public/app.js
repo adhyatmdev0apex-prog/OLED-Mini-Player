@@ -261,8 +261,8 @@
             </div>
             <div class="status-row">
               <span>💾 Storage Tier:</span>
-              <span class="status-badge ${item.offline?.compatible ? 'ok' : ''}">
-                ${item.offline?.compatible ? 'SPIFFS Offline ✓' : 'Stream Only'}
+              <span class="status-badge ${item.offline_download === true ? 'ok' : ''}">
+                ${item.offline_download === true ? 'Offline Available' : 'Stream Only'}
               </span>
             </div>
           </div>
@@ -285,34 +285,32 @@
     $$('.delete-btn').forEach((b) => b.onclick = () => openDeleteModal(b.dataset.id));
   }
 
-  // Render Full Activity Table with filters
-  function renderActivityTable() {
+  // Render Activity Log Table
+  function renderActivity(data) {
     const tbody = $('#activityTableBody');
-    const logs = state.status?.recent_activity || [];
-    const filter = state.activityFilter;
+    const filter = $('#activityFilter').value;
 
-    const filtered = logs.filter((log) => {
-      if (filter === 'esp') return log.esp_identified;
-      if (filter === 'media') return log.type === 'media' || log.path.startsWith('/media/');
-      if (filter === 'api') return log.path.startsWith('/api/');
-      return true;
-    });
+    let rows = data.requests || [];
+    if (filter === 'esp') rows = rows.filter((r) => r.esp_identified);
+    if (filter === 'media') rows = rows.filter((r) => r.type === 'video' || r.type === 'audio');
 
-    if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-cell">No matching activity logged yet.</td></tr>';
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No matching server requests observed yet.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = filtered.map((r) => `
+    tbody.innerHTML = rows.slice(0, 50).map((r) => `
       <tr>
-        <td>${formatTime(r.timestamp)}</td>
-        <td><span class="client-badge ${r.esp_identified ? 'esp' : ''}">${escapeHtml(r.client)}</span></td>
-        <td><span class="method-tag">${escapeHtml(r.method)}</span></td>
-        <td><code>${escapeHtml(r.path)}</code></td>
-        <td><span class="status-tag s${r.status >= 500 ? '500' : r.status >= 400 ? '400' : '200'}">${r.status}</span></td>
-        <td>${formatBytes(r.bytes)}</td>
-        <td>${r.media_id ? `<code>${escapeHtml(r.media_id)}</code>` : '—'}</td>
-        <td>${r.duration_ms} ms</td>
+        <td><span class="code-font">${new Date(r.timestamp).toLocaleTimeString()}</span></td>
+        <td>
+          <span class="client-pill ${r.esp_identified ? 'esp' : ''}">
+            ${r.esp_identified ? 'ESP32-CAM' : escapeHtml(r.client)}
+          </span>
+        </td>
+        <td><strong>${escapeHtml(r.method)}</strong> <span class="code-font">${escapeHtml(r.url)}</span></td>
+        <td><span class="status-tag s${r.status}">${r.status}</span></td>
+        <td>${formatBytes(r.bytes_sent)}</td>
+        <td>${r.duration_ms}ms</td>
       </tr>
     `).join('');
   }
@@ -423,13 +421,12 @@
       const formData = new FormData();
       formData.append(fileType, file);
 
-      showToast(`Uploading replacement ${fileType}.bin...`);
       try {
         await fetchApi(`/api/videos/${encodeURIComponent(id)}/${fileType}`, {
           method: 'POST',
           body: formData
         });
-        showToast(`${fileType}.bin replaced & validated successfully!`);
+        showToast(`${fileType}.bin replaced successfully!`);
         await refreshData();
         loadMediaDetail(id);
       } catch (err) {
@@ -449,7 +446,7 @@
     $('#editDescInput').value = item.description || item.metadata?.description || '';
     $('#editMetaInput').value = JSON.stringify(item.metadata || {}, null, 2);
     if ($('#editOfflineDownload')) {
-      $('#editOfflineDownload').checked = Boolean(item.offline_download || item.metadata?.spiffs_compatible || item.metadata?.offline_download);
+      $('#editOfflineDownload').checked = Boolean(item.offline_download === true || item.metadata?.offline_download === true);
     }
 
     const modal = $('#editModal');
@@ -519,6 +516,9 @@
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
+
+    // Explicitly set canonical offline_download field
+    formData.set('offline_download', $('#addOfflineDownload')?.checked ? 'true' : 'false');
 
     // Validate metadata JSON
     const metaStr = formData.get('metadata') || '{}';

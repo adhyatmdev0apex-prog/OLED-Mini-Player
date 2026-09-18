@@ -12,5 +12,5 @@
   "upload": {
     "maxBytes": 16777216
   },
-  "offline_storage_limit": 1900000
+  "offline_storage_limit": 2050000
 }
