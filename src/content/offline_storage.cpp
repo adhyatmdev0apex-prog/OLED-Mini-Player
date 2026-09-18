@@ -46,15 +46,13 @@ size_t OfflineStorage::getFreeBytes() const {
 bool OfflineStorage::isItemStored(const String& id) const {
     if (!m_mounted || id.length() == 0) return false;
 
-    String vPath = getVideoFilePath(id);
-    String aPath = getAudioFilePath(id);
-
-    if (!LittleFS.exists(vPath) || !LittleFS.exists(aPath)) {
-        return false;
-    }
-
+    // Check offline index first to avoid VFS open warnings on non-stored files
     for (const auto& item : m_offlineCatalogue.items) {
-        if (item.id == id) return true;
+        if (item.id == id) {
+            String vPath = getVideoFilePath(id);
+            String aPath = getAudioFilePath(id);
+            return LittleFS.exists(vPath) && LittleFS.exists(aPath);
+        }
     }
     return false;
 }

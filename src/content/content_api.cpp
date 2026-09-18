@@ -154,6 +154,15 @@ bool ContentAPI::fetchCatalogue(uint32_t page, uint32_t limit, CataloguePage& ou
         } else if (itemObj.containsKey("metadata") && itemObj["metadata"].is<JsonObject>()) {
             isOffline = itemObj["metadata"]["spiffs_compatible"] | false;
         }
+
+        if (itemObj.containsKey("sizes") && itemObj["sizes"].is<JsonObject>()) {
+            size_t totalBytes = itemObj["sizes"]["total"] | 0;
+            if (item.totalSize == 0) item.totalSize = totalBytes;
+            if (!isOffline && totalBytes > 0 && (totalBytes + 4096) <= OFFLINE_STORAGE_LIMIT_BYTES) {
+                isOffline = true;
+            }
+        }
+
         item.isSpiffsCompatible = isOffline;
         item.isOfflineStored = OfflineStorage::getInstance().isItemStored(item.id);
 
