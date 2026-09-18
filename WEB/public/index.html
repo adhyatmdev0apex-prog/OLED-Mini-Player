@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESP32 Media Server Control Panel</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <!-- Sidebar Navigation -->
+    <aside>
+      <a class="brand" href="#dashboard">
+        <span class="brand-icon">◈</span>
+        <div class="brand-text">
+          <span>ESP32-CAM</span>
+          <b>MEDIA CONTROL</b>
+        </div>
+      </a>
+
+      <nav>
+        <button data-view="dashboard" class="nav-btn active">
+          <span class="nav-icon">⌂</span> Dashboard
+        </button>
+        <button data-view="library" class="nav-btn">
+          <span class="nav-icon">🎬</span> Media Library
+        </button>
+        <button data-view="add" class="nav-btn">
+          <span class="nav-icon">➕</span> Add Media
+        </button>
+        <button data-view="activity" class="nav-btn">
+          <span class="nav-icon">📡</span> ESP Activity Log
+        </button>
+        <button data-view="api" class="nav-btn">
+          <span class="nav-icon">🔌</span> API Test Panel
+        </button>
+        <button data-view="settings" class="nav-btn">
+          <span class="nav-icon">⚙</span> Server & LAN Info
+        </button>
+      </nav>
+
+      <div class="side-status">
+        <div class="live-badge">
+          <span class="live-dot"></span>
+          <span>Server Online</span>
+        </div>
+        <small id="sidePort">Port: 3000</small>
+        <small id="sideLanIp">LAN: detecting...</small>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow" id="viewLabel">SYSTEM OVERVIEW</p>
+          <h1 id="viewTitle">Dashboard</h1>
+        </div>
+        <div class="header-actions">
+          <div class="auto-badge" id="pollBadge">● Live Polling (3s)</div>
+          <button class="ghost-btn" id="refreshBtn">↻ Refresh</button>
+        </div>
+      </header>
+
+      <!-- Floating Toast Notifications -->
+      <div id="toast" role="status"></div>
+
+      <!-- VIEW 1: DASHBOARD -->
+      <section id="dashboard" class="view active">
+        <!-- Hero ESP Live Status Banner -->
+        <div class="hero-banner">
+          <div class="hero-status">
+            <p class="eyebrow">ESP32-CAM STATUS</p>
+            <div class="status-indicator-wrap">
+              <span class="live-dot" id="espPulseDot"></span>
+              <h2 id="espStatusTitle">ESP IDLE</h2>
+            </div>
+            <p id="espLastActionText" class="muted-desc">No observed ESP32 requests yet.</p>
+          </div>
+          <div class="hero-timing">
+            <div class="timing-block">
+              <span>SERVER UPTIME</span>
+              <strong id="serverUptime">—</strong>
+            </div>
+            <div class="timing-block">
+              <span>TOTAL TRANSFERS</span>
+              <strong id="totalDownloadsCount">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6 Metrics Cards Grid -->
+        <div class="metrics-grid" id="metricsGrid">
+          <article class="metric-card">
+            <span>TOTAL MEDIA SLOTS</span>
+            <strong id="metricItems">0</strong>
+            <small>Catalogue entries</small>
+          </article>
+          <article class="metric-card">
+            <span>STORAGE USED</span>
+            <strong id="metricStorage">0 B</strong>
+            <small>video.bin + audio.bin</small>
+          </article>
+          <article class="metric-card">
+            <span>VIDEO BINARIES</span>
+            <strong id="metricVideoFiles">0</strong>
+            <small>Valid STIK files</small>
+          </article>
+          <article class="metric-card">
+            <span>AUDIO BINARIES</span>
+            <strong id="metricAudioFiles">0</strong>
+            <small>Raw PCM files</small>
+          </article>
+          <article class="metric-card">
+            <span>TOTAL HTTP REQUESTS</span>
+            <strong id="metricRequests">0</strong>
+            <small>API + Media calls</small>
+          </article>
+          <article class="metric-card">
+            <span>LAST MEDIA REQUESTED</span>
+            <strong id="metricLastMedia">—</strong>
+            <small id="metricLastMediaSub">Not requested yet</small>
+          </article>
+        </div>
+
+        <!-- Timing & Activity Panels -->
+        <div class="two-col-grid">
+          <!-- Timing Breakdown Panel -->
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">ACTIVITY TELEMETRY</p>
+                <h2>Timing & Fetch Telemetry</h2>
+              </div>
+            </div>
+            <div class="telemetry-list">
+              <div class="telemetry-item">
+                <span>Last Catalogue Fetch</span>
+                <strong id="telLastCatalogue">—</strong>
+              </div>
+              <div class="telemetry-item">
+                <span>Last Media Request</span>
+                <strong id="telLastMedia">—</strong>
+              </div>
+              <div class="telemetry-item">
+                <span>Last Video Served</span>
+                <strong id="telLastVideo">—</strong>
+              </div>
+              <div class="telemetry-item">
+                <span>Last Audio Served</span>
+                <strong id="telLastAudio">—</strong>
+              </div>
+              <div class="telemetry-item">
+                <span>Last Successful Transfer</span>
+                <strong id="telLastSuccess">—</strong>
+              </div>
+              <div class="telemetry-item">
+                <span>Last Error / Warning</span>
+                <strong id="telLastError" class="ok-text">None</strong>
+              </div>
+            </div>
+          </section>
+
+          <!-- Recent Activity Mini Table -->
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">SERVER TRAFFIC</p>
+                <h2>Recent Observed Requests</h2>
+              </div>
+              <button data-view="activity" class="link-btn">View All →</button>
+            </div>
+            <div id="recentActivityList"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- VIEW 2: MEDIA LIBRARY -->
+      <section id="library" class="view">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">CATALOGUE</p>
+            <h2>Media Library</h2>
+            <p class="sub-lead">Available media slots served via <code>GET /api/videos</code> to the ESP32-CAM.</p>
+          </div>
+          <button data-view="add" class="primary-btn">＋ Add Media</button>
+        </div>
+        <div class="library-grid" id="libraryGrid"></div>
+      </section>
+
+      <!-- VIEW 3: ADD MEDIA -->
+      <section id="add" class="view">
+        <div class="form-container">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">UPLOAD READY-CONVERTED ESP MEDIA</p>
+              <h2>Add New Media Slot</h2>
+              <p class="sub-lead">Upload your converted <code>video.bin</code> (STIK) and <code>audio.bin</code> (raw PCM) directly to the server. No manual folder creation or catalogue editing required!</p>
+            </div>
+          </div>
+
+          <form id="addMediaForm">
+            <div class="form-group">
+              <label for="addId">Media ID <small>(Required · e.g. v0002)</small></label>
+              <input id="addId" name="id" required pattern="[A-Za-z0-9_-]+" maxlength="64" placeholder="v0002" autocomplete="off">
+              <small class="field-hint">Alphanumeric characters, hyphens, and underscores only. This identifies the media slot.</small>
+            </div>
+
+            <div class="form-group">
+              <label for="addName">Media Name <small>(Required · Human-readable title)</small></label>
+              <input id="addName" name="name" required placeholder="Animation vs Geometry Dash" autocomplete="off">
+            </div>
+
+            <div class="form-group">
+              <label for="addDesc">Description <small>(Optional)</small></label>
+              <textarea id="addDesc" name="description" placeholder="Brief description of the animation"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="addMeta">Metadata <small>(Optional JSON object)</small></label>
+              <textarea id="addMeta" name="metadata" class="code-font" placeholder='{"tags": ["geometry_dash", "stickman"]}'>{}</textarea>
+            </div>
+
+            <div class="file-grid">
+              <div class="file-card">
+                <label for="addVideo">
+                  <span class="file-icon">🎬</span>
+                  <strong>Video Binary (video.bin)</strong>
+                  <small>Required · Must contain valid STIK header</small>
+                </label>
+                <input id="addVideo" name="video" type="file" required accept=".bin,application/octet-stream">
+              </div>
+
+              <div class="file-card">
+                <label for="addAudio">
+                  <span class="file-icon">🔊</span>
+                  <strong>Audio Binary (audio.bin)</strong>
+                  <small>Required · Raw 5000Hz unsigned 8-bit PCM</small>
+                </label>
+                <input id="addAudio" name="audio" type="file" required accept=".bin,application/octet-stream">
+              </div>
+            </div>
+
+            <div class="upload-progress-wrap" id="uploadProgressWrap" style="display: none;">
+              <div class="progress-bar">
+                <div class="progress-fill" id="uploadProgressFill"></div>
+              </div>
+              <span id="uploadProgressText">Uploading & validating binary files...</span>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="primary-btn" id="submitAddBtn">Upload & Add to Catalogue</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- VIEW 4: ESP ACTIVITY & REQUEST LOG -->
+      <section id="activity" class="view">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">SERVER LOG</p>
+            <h2>ESP & HTTP Request Log</h2>
+            <p class="sub-lead">Server-side activity log. Clients sending <code>X-ESP-CLIENT</code> or matching ESP signatures are identified as ESP32.</p>
+          </div>
+          <div class="filter-actions">
+            <select id="activityFilter">
+              <option value="all">All Traffic</option>
+              <option value="esp">ESP32-CAM Only</option>
+              <option value="media">Media Downloads Only</option>
+              <option value="api">API Calls Only</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Client</th>
+                <th>Method</th>
+                <th>Request Path</th>
+                <th>Status</th>
+                <th>Transferred</th>
+                <th>Media Slot</th>
+                <th>Latency</th>
+              </tr>
+            </thead>
+            <tbody id="activityTableBody">
+              <tr><td colspan="8" class="empty-cell">Waiting for incoming server traffic...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- VIEW 5: API DEBUG PANEL -->
+      <section id="api" class="view">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">DEVELOPER TOOLS</p>
+            <h2>API Test & Debug Panel</h2>
+            <p class="sub-lead">Directly test the endpoints that your ESP32-CAM connects to.</p>
+          </div>
+        </div>
+
+        <div class="api-grid">
+          <!-- Test Catalogue Panel -->
+          <div class="panel">
+            <p class="eyebrow">ENDPOINT 1: CATALOGUE</p>
+            <h3>GET /api/videos?page=0&amp;limit=10</h3>
+            <p class="muted-desc">The initial request made by the ESP32-CAM after connecting to Wi-Fi.</p>
+            <div class="api-test-form">
+              <div class="input-row">
+                <label>Page: <input id="testApiPage" type="number" value="0" min="0" style="width: 70px;"></label>
+                <label>Limit: <input id="testApiLimit" type="number" value="10" min="1" max="50" style="width: 70px;"></label>
+                <button id="runCatalogueTestBtn" class="primary-btn">Test Catalogue</button>
+              </div>
+            </div>
+            <div class="test-result-meta" id="catalogueResultMeta">No test executed yet.</div>
+          </div>
+
+          <!-- Test Media Download Panel -->
+          <div class="panel">
+            <p class="eyebrow">ENDPOINT 2: MEDIA STREAMING</p>
+            <h3>GET /media/:id/video.bin &amp; audio.bin</h3>
+            <p class="muted-desc">Test binary media streaming and Content-Length headers.</p>
+            <div class="api-test-form">
+              <div class="input-row">
+                <select id="testMediaSelect" style="flex: 1;">
+                  <option value="">Select a media slot...</option>
+                </select>
+                <button id="testVideoBtn" class="ghost-btn">Test Video</button>
+                <button id="testAudioBtn" class="ghost-btn">Test Audio</button>
+              </div>
+            </div>
+            <div class="test-result-meta" id="mediaResultMeta">Select a media slot to test.</div>
+          </div>
+        </div>
+
+        <!-- Full Output JSON Box -->
+        <div class="panel" style="margin-top: 20px;">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">RESPONSE VIEWER</p>
+              <h3>Exact HTTP Response Body</h3>
+            </div>
+            <button id="copyJsonBtn" class="ghost-btn">Copy JSON</button>
+          </div>
+          <pre id="apiJsonViewer" class="code-box">{}</pre>
+        </div>
+      </section>
+
+      <!-- VIEW 6: SERVER & LAN INFO -->
+      <section id="settings" class="view">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">CONFIGURATION</p>
+            <h2>Server &amp; Network Setup</h2>
+            <p class="sub-lead">Network endpoints and instructions for connecting the ESP32-CAM.</p>
+          </div>
+        </div>
+
+        <div class="two-col-grid">
+          <div class="panel">
+            <p class="eyebrow">LAN BASE URLS FOR ESP32</p>
+            <h3>Connect ESP32-CAM to this PC</h3>
+            <p class="muted-desc"><code>localhost</code> will <strong>NOT</strong> work from your ESP32-CAM. Use one of your PC's local LAN IP addresses below:</p>
+            <div id="lanIpList" class="lan-list"></div>
+            <div class="info-card">
+              <strong>How to configure the ESP32-CAM:</strong>
+              <p>In the ESP32 Serial Monitor (115200 baud), type:</p>
+              <code id="espServerCmd">server http://192.168.1.10:3000</code>
+            </div>
+          </div>
+
+          <div class="panel">
+            <p class="eyebrow">SERVER DIRECTORIES</p>
+            <h3>Storage Architecture</h3>
+            <div class="telemetry-list">
+              <div class="telemetry-item">
+                <span>Media Root Directory</span>
+                <code>WEB/media</code>
+              </div>
+              <div class="telemetry-item">
+                <span>Catalogue JSON File</span>
+                <code>WEB/data/catalogue.json</code>
+              </div>
+              <div class="telemetry-item">
+                <span>Node.js Server Port</span>
+                <code>3000</code>
+              </div>
+              <div class="telemetry-item">
+                <span>Max Upload Payload</span>
+                <code>32 MB</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 7: MEDIA DETAILS VIEW -->
+      <section id="details" class="view">
+        <button class="link-btn back-btn" data-view="library">← Back to Media Library</button>
+        <div id="detailContainer"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Delete Confirmation Dialog -->
+  <dialog id="confirmModal">
+    <form method="dialog" class="dialog-form">
+      <h3>Delete Media Slot?</h3>
+      <p id="confirmModalDesc">Are you sure you want to delete this media item?</p>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost-btn">Cancel</button>
+        <button id="executeDeleteBtn" value="default" class="danger-btn">Delete Permanently</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Edit Metadata Dialog -->
+  <dialog id="editModal">
+    <div class="dialog-form">
+      <h3>Edit Media Metadata</h3>
+      <form id="editMetaForm">
+        <div class="form-group">
+          <label>Name</label>
+          <input id="editNameInput" required>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="editDescInput"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Metadata (JSON)</label>
+          <textarea id="editMetaInput" class="code-font"></textarea>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" id="cancelEditBtn" class="ghost-btn">Cancel</button>
+          <button type="submit" class="primary-btn">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>

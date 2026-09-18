@@ -1,0 +1,34 @@
+{
+  "videos": [
+    {
+      "id": "v0004",
+      "name": "ANIM vs GD test",
+      "video_file": "video.bin",
+      "audio_file": "audio.bin",
+      "description": "",
+      "metadata": {},
+      "created_at": "2026-09-17T08:14:05.222Z",
+      "updated_at": "2026-09-17T08:14:05.222Z"
+    },
+    {
+      "id": "v0001",
+      "name": "Anim vs coding part 1",
+      "video_file": "video.bin",
+      "audio_file": "audio.bin",
+      "description": "",
+      "metadata": {},
+      "created_at": "2026-09-17T11:10:57.311Z",
+      "updated_at": "2026-09-17T11:10:57.311Z"
+    },
+    {
+      "id": "v0002",
+      "name": "Anim vs Coding part 2",
+      "video_file": "video.bin",
+      "audio_file": "audio.bin",
+      "description": "",
+      "metadata": {},
+      "created_at": "2026-09-17T11:13:58.544Z",
+      "updated_at": "2026-09-17T11:13:58.544Z"
+    }
+  ]
+}

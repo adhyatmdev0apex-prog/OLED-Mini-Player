@@ -1,0 +1,16 @@
+{
+  "host": "0.0.0.0",
+  "port": 3000,
+  "cors": {
+    "enabled": true,
+    "origin": "*"
+  },
+  "pagination": {
+    "defaultLimit": 10,
+    "maxLimit": 50
+  },
+  "upload": {
+    "maxBytes": 16777216
+  },
+  "offline_storage_limit": 1900000
+}
