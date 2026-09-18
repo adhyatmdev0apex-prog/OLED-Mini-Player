@@ -29,7 +29,7 @@
 #define WIFI_RECONNECT_INTERVAL_MS 10000
 
 // --- Persistent Offline Storage (LittleFS / SPIFFS) ---
-#define OFFLINE_STORAGE_LIMIT_BYTES (1900000UL) // 1.9 MB maximum per offline media package
+#define OFFLINE_STORAGE_LIMIT_BYTES (2050000UL) // 2.05 MB maximum per offline media package
 #define OFFLINE_CATALOGUE_PATH "/offline_catalogue.json"
 
 // --- Server & API Configuration ---
@@ -47,9 +47,9 @@
 
 // --- Memory & Download Limits ---
 #define MAX_VIDEO_SIZE (3500000UL)       // 3.5 MB
-#define MAX_AUDIO_SIZE (1500000UL)       // 1.5 MB
-#define MAX_COMBINED_MEDIA_SIZE (3800000UL) // 3.8 MB
-#define PSRAM_SAFETY_MARGIN_BYTES (300000UL) // 300 KB reserved for stack/heap/BT
+#define MAX_AUDIO_SIZE (2500000UL)       // 2.5 MB (supports full-length audio in PSRAM)
+#define MAX_COMBINED_MEDIA_SIZE (3900000UL) // 3.9 MB (fits in 4.19MB PSRAM)
+#define PSRAM_SAFETY_MARGIN_BYTES (250000UL) // 250 KB reserved for stack/heap/BT
 
 // --- OLED Pin Configuration ---
 #define OLED_SDA 13
