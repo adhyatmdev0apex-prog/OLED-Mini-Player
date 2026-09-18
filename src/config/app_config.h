@@ -9,20 +9,20 @@
 
 // --- Wi-Fi Configuration ---
 #ifndef WIFI_SSID
-#define WIFI_SSID "JioFiber-7JQa3"
+#define WIFI_SSID "first-priority wifi ssid"
 #endif
 
 #ifndef WIFI_PASSWORD
-#define WIFI_PASSWORD "S4pQqJAdRMFyJQnu"
+#define WIFI_PASSWORD "first-priority wifi pass"
 #endif
 
 // Secondary / Fallback Wi-Fi
 #ifndef WIFI_FALLBACK_SSID
-#define WIFI_FALLBACK_SSID "GUEST"
+#define WIFI_FALLBACK_SSID "fallback wifi ssid"
 #endif
 
 #ifndef WIFI_FALLBACK_PASSWORD
-#define WIFI_FALLBACK_PASSWORD "N@KKUND!@2026#!"
+#define WIFI_FALLBACK_PASSWORD "fallback wifi pass"
 #endif
 
 #define WIFI_CONNECT_TIMEOUT_MS 12000
