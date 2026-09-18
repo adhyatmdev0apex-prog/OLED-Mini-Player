@@ -88,9 +88,8 @@ void setup() {
     Serial.println("[SYSTEM] Initializing Playback Engine...");
     PlaybackManager::getInstance().begin();
 
-    // 6. Bluetooth Classic A2DP Source Initialization
-    Serial.println("[SYSTEM] Initializing Bluetooth Classic A2DP Source...");
-    bluetoothAudioBegin();
+    // 6. Bluetooth Classic A2DP Source: Deferred until after initial network catalogue fetch
+    Serial.println("[SYSTEM] Bluetooth Classic A2DP Source: Standing by (will activate after catalogue sync)...");
 
     // 7. Content Manager Initialization
     Serial.println("[SYSTEM] Initializing Content API Manager...");
@@ -143,6 +142,9 @@ void loop() {
                 s_selectedCatalogueIndex = 0;
                 displayCurrentCatalogueItem();
                 s_appState = AppState::CATALOGUE_BROWSE;
+
+                Serial.println("[SYSTEM] Starting Bluetooth Classic A2DP Source for Offline Playback...");
+                bluetoothAudioBegin();
             }
             break;
 
@@ -154,6 +156,10 @@ void loop() {
                     s_selectedCatalogueIndex = 0;
                     displayCurrentCatalogueItem();
                     s_appState = AppState::CATALOGUE_BROWSE;
+
+                    // Activate Bluetooth Audio now that initial catalogue sync is done
+                    Serial.println("[SYSTEM] Starting Bluetooth Classic A2DP Source...");
+                    bluetoothAudioBegin();
                 } else {
                     OLEDDisplay::getInstance().showStatusScreen("Wi-Fi Connected",
                                                                 "Catalogue Fetch Fail",
@@ -203,14 +209,16 @@ void loop() {
         }
 
         case AppState::SAVING_OFFLINE: {
-            // Download to LittleFS flash without playing
+            const MediaItem* cur = ContentManager::getInstance().getItem(s_selectedCatalogueIndex);
+            String name = cur ? cur->name : "Offline Media";
             if (ContentManager::getInstance().saveItemToFlash(s_selectedCatalogueIndex)) {
-                OLEDDisplay::getInstance().showOfflineSavedSuccess("Offline Media");
+                OLEDDisplay::getInstance().showOfflineSavedSuccess(name.c_str());
                 delay(2000);
             } else {
                 OLEDDisplay::getInstance().showErrorScreen("Save to Flash Fail");
                 delay(2000);
             }
+
             displayCurrentCatalogueItem();
             s_appState = AppState::CATALOGUE_BROWSE;
             break;
@@ -218,7 +226,9 @@ void loop() {
 
         case AppState::DOWNLOADING: {
             DownloadedMedia downloaded;
-            if (ContentManager::getInstance().downloadItem(s_selectedCatalogueIndex, downloaded)) {
+            bool success = ContentManager::getInstance().downloadItem(s_selectedCatalogueIndex, downloaded);
+
+            if (success) {
                 PlaybackManager::getInstance().setMedia(downloaded);
                 s_appState = AppState::PLAYING;
 

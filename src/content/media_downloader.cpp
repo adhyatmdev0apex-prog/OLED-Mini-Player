@@ -2,6 +2,7 @@
 #include <memory>
 #include "../wifi/wifi_manager.h"
 #include "../display/oled_display.h"
+#include "../audio/bluetooth/bluetooth.h"
 #include <WiFiClientSecure.h>
 #include <LittleFS.h>
 
@@ -208,6 +209,23 @@ bool MediaDownloader::downloadMedia(const MediaItem& item, DownloadedMedia& outR
         Serial.println("[DOWNLOAD] Error: Invalid MediaItem details.");
         return false;
     }
+
+    bool wasBtActive = (bluetoothAudioGetState() != BluetoothState::OFF);
+    if (wasBtActive) {
+        Serial.println("[DOWNLOAD] Pausing Bluetooth stack to maximize heap for HTTPS TLS...");
+        bluetoothAudioEnd();
+        delay(60);
+    }
+
+    struct BtRestorer {
+        bool active;
+        ~BtRestorer() {
+            if (active) {
+                Serial.println("[DOWNLOAD] Restoring Bluetooth stack for playback...");
+                bluetoothAudioBegin();
+            }
+        }
+    } btRestorer{wasBtActive};
 
     Serial.println();
     Serial.println("========================================");
@@ -419,38 +437,80 @@ bool MediaDownloader::downloadToFlash(const MediaItem& item, const String& video
         return false;
     }
 
+    bool wasBtActive = (bluetoothAudioGetState() != BluetoothState::OFF);
+    if (wasBtActive) {
+        Serial.println("[DOWNLOAD-FLASH] Pausing Bluetooth stack to maximize heap for Flash download...");
+        bluetoothAudioEnd();
+        delay(60);
+    }
+
+    struct BtRestorer {
+        bool active;
+        ~BtRestorer() {
+            if (active) {
+                Serial.println("[DOWNLOAD-FLASH] Restoring Bluetooth stack...");
+                bluetoothAudioBegin();
+            }
+        }
+    } btRestorer{wasBtActive};
+
     Serial.println();
     Serial.println("========================================");
     Serial.printf("[DOWNLOAD-FLASH] Storing item to Flash:\n  ID:   %s\n  Name: %s\n", item.id.c_str(), item.name.c_str());
     Serial.println("========================================");
 
-    // 1. Download video directly to flash file
+    String tmpVideoPath = videoFilePath + ".tmp";
+    String tmpAudioPath = audioFilePath + ".tmp";
+
+    // Clean up any stale temp files first
+    if (LittleFS.exists(tmpVideoPath)) LittleFS.remove(tmpVideoPath);
+    if (LittleFS.exists(tmpAudioPath)) LittleFS.remove(tmpAudioPath);
+
+    // 1. Download video directly to temporary flash file
     size_t vSize = 0;
-    if (!downloadToFile(item.videoUrl, videoFilePath, OFFLINE_STORAGE_LIMIT_BYTES, "Flash Video", vSize)) {
+    if (!downloadToFile(item.videoUrl, tmpVideoPath, OFFLINE_STORAGE_LIMIT_BYTES, "Flash Video", vSize)) {
         Serial.println("[DOWNLOAD-FLASH] Video file download to flash failed.");
+        if (LittleFS.exists(tmpVideoPath)) LittleFS.remove(tmpVideoPath);
         return false;
     }
 
-    // 2. Validate STIK header of the file on flash
-    if (!validateSTIKFile(videoFilePath)) {
+    // 2. Validate STIK header of the temp file on flash
+    if (!validateSTIKFile(tmpVideoPath)) {
         Serial.println("[DOWNLOAD-FLASH] Video STIK header validation failed!");
-        LittleFS.remove(videoFilePath);
+        if (LittleFS.exists(tmpVideoPath)) LittleFS.remove(tmpVideoPath);
         return false;
     }
 
-    // 3. Download audio directly to flash file
+    // 3. Download audio directly to temporary flash file
     size_t aSize = 0;
-    if (!downloadToFile(item.audioUrl, audioFilePath, OFFLINE_STORAGE_LIMIT_BYTES, "Flash Audio", aSize)) {
+    if (!downloadToFile(item.audioUrl, tmpAudioPath, OFFLINE_STORAGE_LIMIT_BYTES, "Flash Audio", aSize)) {
         Serial.println("[DOWNLOAD-FLASH] Audio file download to flash failed.");
-        LittleFS.remove(videoFilePath);
+        if (LittleFS.exists(tmpVideoPath)) LittleFS.remove(tmpVideoPath);
+        if (LittleFS.exists(tmpAudioPath)) LittleFS.remove(tmpAudioPath);
         return false;
     }
 
     // 4. Validate audio size
     if (aSize == 0) {
         Serial.println("[DOWNLOAD-FLASH] Audio file is empty!");
-        LittleFS.remove(videoFilePath);
-        LittleFS.remove(audioFilePath);
+        if (LittleFS.exists(tmpVideoPath)) LittleFS.remove(tmpVideoPath);
+        if (LittleFS.exists(tmpAudioPath)) LittleFS.remove(tmpAudioPath);
+        return false;
+    }
+
+    // 5. Both files completely downloaded and validated! Atomically replace final files.
+    if (LittleFS.exists(videoFilePath)) LittleFS.remove(videoFilePath);
+    if (!LittleFS.rename(tmpVideoPath, videoFilePath)) {
+        Serial.println("[DOWNLOAD-FLASH] Error: Failed to rename temp video file.");
+        if (LittleFS.exists(tmpVideoPath)) LittleFS.remove(tmpVideoPath);
+        if (LittleFS.exists(tmpAudioPath)) LittleFS.remove(tmpAudioPath);
+        return false;
+    }
+
+    if (LittleFS.exists(audioFilePath)) LittleFS.remove(audioFilePath);
+    if (!LittleFS.rename(tmpAudioPath, audioFilePath)) {
+        Serial.println("[DOWNLOAD-FLASH] Error: Failed to rename temp audio file.");
+        if (LittleFS.exists(tmpAudioPath)) LittleFS.remove(tmpAudioPath);
         return false;
     }
 

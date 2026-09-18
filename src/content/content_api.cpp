@@ -147,19 +147,23 @@ bool ContentAPI::fetchCatalogue(uint32_t page, uint32_t limit, CataloguePage& ou
         item.audioUrl = buildAbsoluteUrl(m_baseUrl, rawAudioUrl);
 
         // Parse offline / SPIFFS qualification
+        // C. Item marked offline_download=true appears as downloadable
+        // D. Item marked false cannot be downloaded offline
         bool isOffline = false;
-        if (itemObj.containsKey("offline") && itemObj["offline"].is<JsonObject>()) {
-            isOffline = itemObj["offline"]["compatible"] | false;
-            item.totalSize = itemObj["offline"]["size"] | 0;
-        } else if (itemObj.containsKey("metadata") && itemObj["metadata"].is<JsonObject>()) {
-            isOffline = itemObj["metadata"]["spiffs_compatible"] | false;
+        if (itemObj.containsKey("offline_download")) {
+            isOffline = itemObj["offline_download"].as<bool>();
+        } else if (itemObj.containsKey("metadata") && itemObj["metadata"].is<JsonObject>() && itemObj["metadata"].containsKey("offline_download")) {
+            isOffline = itemObj["metadata"]["offline_download"].as<bool>();
+        } else if (itemObj.containsKey("metadata") && itemObj["metadata"].is<JsonObject>() && itemObj["metadata"].containsKey("spiffs_compatible")) {
+            isOffline = itemObj["metadata"]["spiffs_compatible"].as<bool>();
         }
 
         if (itemObj.containsKey("sizes") && itemObj["sizes"].is<JsonObject>()) {
             size_t totalBytes = itemObj["sizes"]["total"] | 0;
-            if (item.totalSize == 0) item.totalSize = totalBytes;
-            if (!isOffline && totalBytes > 0 && (totalBytes + 4096) <= OFFLINE_STORAGE_LIMIT_BYTES) {
-                isOffline = true;
+            item.totalSize = totalBytes;
+            // Verify size safety margin on LittleFS partition
+            if (totalBytes > 0 && (totalBytes + 4096) > OFFLINE_STORAGE_LIMIT_BYTES) {
+                isOffline = false;
             }
         }
 
